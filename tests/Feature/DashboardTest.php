@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\DemoDashboardData;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -45,7 +46,7 @@ class DashboardTest extends TestCase
 
         $this->actingAs($user)->get('/dashboard')
             ->assertOk()
-            ->assertSee('Welcome, Ada Lovelace.')
+            ->assertSee('Welcome back, Ada Lovelace')
             ->assertSee('data-testid="profile-name">Ada Lovelace<', false)
             ->assertSee('data-testid="profile-email">ada@example.com<', false)
             ->assertSee('March 15, 2026')
@@ -129,6 +130,51 @@ class DashboardTest extends TestCase
             ->assertSee('Close navigation')
             ->assertSee('aria-current="page"', false)
             ->assertSee('Skip to content');
+    }
+
+    public function test_sample_data_is_clearly_labelled(): void
+    {
+        $user = User::factory()->create();
+        $html = $this->actingAs($user)->get('/dashboard')->assertOk()
+            ->assertSee('Demo dashboard.')
+            ->assertSee('They are not from your account.')
+            ->getContent();
+
+        // Every demo panel (2 charts, traffic, products, orders, activity) carries the badge, plus the banner.
+        $this->assertSame(7, substr_count($html, 'Sample data'));
+    }
+
+    public function test_dashboard_renders_charts_with_their_data(): void
+    {
+        $user = User::factory()->create();
+        $response = $this->actingAs($user)->get('/dashboard')->assertOk();
+
+        $response->assertSee('data-chart="revenue"', false)
+            ->assertSee('data-chart="categories"', false)
+            ->assertSee('name="revenue-year"', false);
+
+        preg_match('/<script type="application\/json" id="dashboard-chart-data">(.*?)<\/script>/s', $response->getContent(), $match);
+        $data = json_decode($match[1] ?? '', true);
+
+        $this->assertSame(DemoDashboardData::MONTHS, $data['revenue']['labels']);
+        // Current year first, matching the pre-selected year button.
+        $this->assertSame(['2026', '2025'], array_column($data['revenue']['years'], 'year'));
+        $response->assertSee('value="2026" autocomplete="off" checked', false);
+        $this->assertCount(2, $data['categories']['series']);
+    }
+
+    public function test_dashboard_shows_kpis_orders_and_table_views(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/dashboard')->assertOk()
+            ->assertSeeInOrder(['Revenue', 'Orders', 'New customers', 'Conversion rate'])
+            ->assertSee('$311,800')
+            ->assertSee('Recent orders')
+            ->assertSee('#10487')
+            ->assertSee('Maya Okafor')
+            ->assertSeeInOrder(['Paid', 'Pending', 'Paid', 'Refunded', 'Failed'])
+            ->assertSee('Show data as a table');
     }
 
     public function test_dashboard_runs_no_extra_database_queries(): void

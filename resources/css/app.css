@@ -1,4 +1,13 @@
 @tailwind base;
+@layer base {
+    /* Browsers centre <th> by default; align headings with their column instead
+       (the rule Bootstrap's Reboot would provide, which isn't loaded here). */
+    th {
+        text-align: inherit;
+        text-align: -webkit-match-parent;
+    }
+}
+
 @tailwind components;
 @tailwind utilities;
 

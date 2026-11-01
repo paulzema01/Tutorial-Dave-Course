@@ -57,7 +57,11 @@ Authentication uses [Laravel Breeze](https://github.com/laravel/breeze) (Blade s
   - Session invalidated on logout.
   - Logout works only through a POST request.
 - **Brute-force protection:** after 5 failed logins for the same email and IP address, login is locked for about a minute.
-- **Protected dashboard:** shows only the logged-in user's real name, email, avatar initials and join date. It has no invented metrics.
+- **Protected dashboard:**
+  - The "Your profile" panel shows the logged-in user's real name, email, avatar initials and join date.
+  - Demo panels show what the dashboard looks like with business data: headline figures, a monthly revenue bar chart with a year switch, a sales-by-category bar chart, traffic sources, top products, a recent-orders table and recent activity.
+  - The demo figures are **made-up sample data**, labelled "Sample data" on the page. They live in [app/Support/DemoDashboardData.php](app/Support/DemoDashboardData.php) and never touch the database.
+  - Every chart has a "Show data as a table" view for screen readers and anyone who prefers numbers.
 - **Responsive layout:**
   - Desktop: a sidebar.
   - Phones and tablets: a slide-in drawer that closes with ✕, Escape or a tap outside.
@@ -91,6 +95,8 @@ Email verification, password confirmation and account deletion were removed on p
 | Templates | Blade components | |
 | Styling | Tailwind CSS 3 + Bootstrap 5.3 (components only) | See [Frontend](#frontend) |
 | JavaScript | Alpine.js | |
+| Charts | Chart.js 4 | Loaded only on pages with charts |
+| Icons | Bootstrap Icons 1.13 | Icon font, bundled by Vite |
 | Build tool | Vite | |
 | Tests | PHPUnit 12 | In-memory SQLite |
 | Code style | Laravel Pint | |
@@ -223,7 +229,7 @@ The `User` model hashes the password automatically, so passwords are never store
 
 **Log in** at `/login`. Wrong email and wrong password show the same message, so the form doesn't reveal which emails have accounts.
 
-**Dashboard:** after logging in you'll see three cards: your profile, account security, and your workspace. The workspace shows an empty state until features are added. Use the sidebar (or the ☰ menu on mobile) and the account menu (top right) to move around or log out.
+**Dashboard:** after logging in you'll see a welcome banner, four headline figures, two bar charts, traffic sources, top products, recent orders, recent activity and your profile. Everything except "Your profile" is sample data and is labelled as such. Switch the revenue chart between years with the 2026 / 2025 buttons. Use the sidebar (or the ☰ menu on mobile) and the account menu (top right) to move around or log out.
 
 ## Routes
 
@@ -233,7 +239,7 @@ The `User` model hashes the password automatically, so passwords are never store
 | `/register` | GET, POST | `register` | Guests | Create an account |
 | `/login` | GET, POST | `login` | Guests | Log in |
 | `/logout` | POST | `logout` | Logged in | Log out (CSRF protected, never GET) |
-| `/dashboard` | GET | `dashboard` | Logged in | Personal dashboard |
+| `/dashboard` | GET | `dashboard` | Logged in | Dashboard: real profile panel plus sample-data charts and records |
 | `/profile` | GET, PATCH | `profile.edit`, `profile.update` | Logged in | Profile settings |
 | `/password` | PUT | `password.update` | Logged in | Change password *(verified in a later phase)* |
 | `/forgot-password` | GET, POST | `password.request`, `password.email` | Guests | Request a reset link *(later phase)* |
@@ -250,19 +256,21 @@ Only the parts of the standard Laravel layout that this project adds or changes:
 app/
 ├── Http/Controllers/
 │   ├── Auth/                    # Breeze auth controllers (login, register, password)
-│   ├── DashboardController.php  # Passes the logged-in user to the dashboard
+│   ├── DashboardController.php  # Passes the logged-in user + sample data to the dashboard
 │   └── ProfileController.php
+├── Support/DemoDashboardData.php  # Made-up figures for the dashboard's demo panels
 └── View/Components/             # AppLayout, GuestLayout (supports a "wide" card)
 resources/
 ├── css/app.css                  # Tailwind entry point
 ├── scss/bootstrap.scss          # Chooses which Bootstrap components are compiled
 ├── js/
-│   ├── app.js                   # Loads Bootstrap + Alpine
+│   ├── app.js                   # Loads Bootstrap, Bootstrap Icons + Alpine
+│   ├── dashboard-charts.js      # Chart.js bar charts (loaded only when needed)
 │   └── register-form.js         # Password strength and match logic
 └── views/
     ├── layouts/                 # app (sidebar shell), navigation (sidebar), guest
-    ├── components/              # card, empty-state, sidebar-link, user-avatar,
-    │                            # password-input, dropdown, form inputs …
+    ├── components/              # card, stat-tile, sample-badge, empty-state, sidebar-link,
+    │                            # user-avatar, password-input, dropdown, form inputs …
     ├── auth/                    # login, register, forgot/reset password
     ├── profile/                 # profile and password forms
     └── dashboard.blade.php
@@ -281,6 +289,8 @@ Reusable components for new pages:
 | Component | Use it for |
 |---|---|
 | `<x-card title="…" description="…">` | A content panel, with optional `actions` and `footer` slots |
+| `<x-stat-tile label value :delta delta-unit comparison icon>` | A headline number with an up/down change |
+| `<x-sample-badge />` | The "Sample data" label for panels that show demo figures |
 | `<x-empty-state title="…" description="…">` | A friendly "nothing here yet" message |
 | `<x-sidebar-link :href :active>` | A sidebar navigation item (sets `aria-current`) |
 | `<x-user-avatar :user size="sm\|md\|lg">` | The user's initials in a circle |
@@ -291,7 +301,13 @@ Reusable components for new pages:
 - **Available:** components such as `btn`, `card`, `navbar`, `dropdown`, `modal`, `alert`, `badge`, `form-control`, `table`, the grid and `list-group`. Their JavaScript works through `data-bs-*` attributes, and `window.bootstrap` is available to scripts.
 - **Not included:** Bootstrap's utility classes (`mt-4`, `d-flex` …), Reboot and the typography classes. They clash with Tailwind's classes of the same name, so use Tailwind for spacing, layout and text.
 
-After changing which parts are included, run `npm run build`.
+After changing which parts are included, run `npm run build`. Bootstrap's primary colour is set to the site's indigo (`#4f46e5`) so its buttons match.
+
+Because Bootstrap's stylesheet loads after Tailwind's, a Bootstrap component class can override a Tailwind class on the same element (for example `.badge` sets `display: inline-block`). Add Tailwind's `!` prefix when the Tailwind class must win: `class="badge !inline-flex gap-1"`.
+
+**Icons:** [Bootstrap Icons](https://icons.getbootstrap.com/) work anywhere: `<i class="bi bi-bag-check" aria-hidden="true"></i>`. Mark decorative icons `aria-hidden="true"`.
+
+**Charts:** add `<canvas data-chart="name">` to a page and a builder for `name` in [resources/js/dashboard-charts.js](resources/js/dashboard-charts.js). Chart.js is downloaded only on pages that contain a chart. The chart colours were checked for colour-blind safety.
 
 ## Testing
 
@@ -308,7 +324,8 @@ Tests run against an **in-memory SQLite database** (see [phpunit.xml](phpunit.xm
 |---|---|
 | `Auth/AuthenticationTest` | Valid/invalid login, validation, session regeneration, throttling, guest redirects, logout, CSRF |
 | `Auth/RegistrationTest` | Sign-up, password hashing, mismatched/short passwords, duplicate email, kept input on errors |
-| `DashboardTest` | Guest blocking, real user data only, HTML escaping, working links, POST logout, mobile controls, no extra queries |
+| `DashboardTest` | Guest blocking, real user data only, HTML escaping, working links, POST logout, mobile controls, sample-data labels, chart data, orders table, no extra queries |
+| `Unit/DemoDashboardDataTest` | Sample totals and changes are calculated correctly and every chart series matches its labels |
 | `ProfileTest` | Viewing and updating the profile |
 | `Auth/PasswordResetTest`, `Auth/PasswordUpdateTest` | Breeze's tests for features to be verified in later phases |
 
@@ -359,6 +376,7 @@ This checklist will grow as features are added. At minimum:
 - [x] Environment setup and MySQL connection
 - [x] Login, logout, registration and route protection
 - [x] Responsive dashboard
+- [x] Dashboard design with sample charts and records
 - [ ] Forgot password and reset by email link
 - [ ] Dedicated change-password page
 - [ ] Production mail delivery

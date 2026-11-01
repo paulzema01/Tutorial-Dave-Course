@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\DemoDashboardData;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -14,6 +15,7 @@ class DashboardController extends Controller
     {
         return view('dashboard', [
             'user' => $request->user(),
+            'demo' => DemoDashboardData::make(),
         ]);
     }
 }

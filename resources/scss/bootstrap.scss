@@ -9,6 +9,10 @@
 
 // Configuration
 @import "bootstrap/scss/functions";
+
+// Match the site's Tailwind indigo-600 so Bootstrap components fit the design.
+$primary: #4f46e5;
+
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/variables-dark";
 @import "bootstrap/scss/maps";
